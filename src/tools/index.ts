@@ -358,6 +358,187 @@ export class RobloxStudioTools {
   }
 
 
+  async reparentInstance(instancePath: string, newParent: string) {
+    if (!instancePath) {
+      throw new Error('Instance path is required for reparent_instance');
+    }
+    if (!newParent) {
+      throw new Error('New parent path is required for reparent_instance');
+    }
+    const response = await this.client.request('/api/reparent-instance', { instancePath, newParent });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async undo() {
+    const response = await this.client.request('/api/undo', {});
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async redo() {
+    const response = await this.client.request('/api/redo', {});
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async insertAsset(assetId: number, parent: string) {
+    if (!assetId) {
+      throw new Error('Asset ID is required for insert_asset');
+    }
+    if (!parent) {
+      throw new Error('Parent path is required for insert_asset');
+    }
+    const response = await this.client.request('/api/insert-asset', { assetId, parent });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async cloneInstance(instancePath: string, parent: string, name?: string) {
+    if (!instancePath) {
+      throw new Error('Instance path is required for clone_instance');
+    }
+    if (!parent) {
+      throw new Error('Parent path is required for clone_instance');
+    }
+    const response = await this.client.request('/api/clone-instance', { instancePath, parent, name });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async createUI(
+    elements: Array<{
+      className: string;
+      name?: string;
+      position?: { xScale: number; xOffset: number; yScale: number; yOffset: number };
+      size?: { xScale: number; xOffset: number; yScale: number; yOffset: number };
+      properties?: Record<string, any>;
+      parent?: string;
+    }>,
+    parent?: string
+  ) {
+    if (!elements || elements.length === 0) {
+      throw new Error('Elements array is required for create_ui');
+    }
+    const response = await this.client.request('/api/create-ui', { elements, parent });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async fillTerrain(material: string, min: [number, number, number], max: [number, number, number]) {
+    if (!material) {
+      throw new Error('Material is required for fill_terrain');
+    }
+    if (!min || !max) {
+      throw new Error('Min and max coordinates are required for fill_terrain');
+    }
+    const response = await this.client.request('/api/fill-terrain', { material, min, max });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async fillTerrainSphere(material: string, center: [number, number, number], radius: number) {
+    if (!material) {
+      throw new Error('Material is required for fill_terrain_sphere');
+    }
+    if (!center) {
+      throw new Error('Center coordinates are required for fill_terrain_sphere');
+    }
+    if (!radius || radius <= 0) {
+      throw new Error('Radius must be a positive number for fill_terrain_sphere');
+    }
+    const response = await this.client.request('/api/fill-terrain-sphere', { material, center, radius });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async clearTerrain(min?: [number, number, number], max?: [number, number, number]) {
+    const response = await this.client.request('/api/clear-terrain', { min, max });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async getTerrainMaterials() {
+    const response = await this.client.request('/api/get-terrain-materials', {});
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
+  async searchReplaceScripts(search: string, replace?: string, root?: string, dryRun?: boolean) {
+    if (!search) {
+      throw new Error('Search string is required for search_replace_scripts');
+    }
+    const response = await this.client.request('/api/search-replace-scripts', { search, replace, root, dryRun });
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response, null, 2)
+        }
+      ]
+    };
+  }
+
   async setCalculatedProperty(
     paths: string[],
     propertyName: string,

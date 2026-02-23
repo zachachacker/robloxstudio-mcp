@@ -531,6 +531,254 @@ class RobloxStudioMCPServer {
           },
 
           {
+            name: 'reparent_instance',
+            description: 'Move a Roblox instance to a new parent. Changes the Parent property of the instance.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                instancePath: {
+                  type: 'string',
+                  description: 'Path to the instance to move (e.g., "game.Workspace.Part")'
+                },
+                newParent: {
+                  type: 'string',
+                  description: 'Path to the new parent instance (e.g., "game.ServerStorage")'
+                }
+              },
+              required: ['instancePath', 'newParent']
+            }
+          },
+          {
+            name: 'undo',
+            description: 'Undo the last action in Roblox Studio using ChangeHistoryService',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'redo',
+            description: 'Redo the last undone action in Roblox Studio using ChangeHistoryService',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'insert_asset',
+            description: 'Insert a Roblox asset from the catalog by asset ID using InsertService. Loads the asset model and moves its children to the specified parent.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                assetId: {
+                  type: 'number',
+                  description: 'The Roblox asset ID to insert'
+                },
+                parent: {
+                  type: 'string',
+                  description: 'Path to the parent instance where the asset will be inserted (e.g., "game.Workspace")'
+                }
+              },
+              required: ['assetId', 'parent']
+            }
+          },
+          {
+            name: 'clone_instance',
+            description: 'Deep copy (clone) a Roblox instance to a different parent. Uses Instance:Clone() which copies the instance and all its descendants.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                instancePath: {
+                  type: 'string',
+                  description: 'Path to the instance to clone (e.g., "game.Workspace.MyModel")'
+                },
+                parent: {
+                  type: 'string',
+                  description: 'Path to the parent for the cloned instance (e.g., "game.ServerStorage")'
+                },
+                name: {
+                  type: 'string',
+                  description: 'Optional new name for the cloned instance'
+                }
+              },
+              required: ['instancePath', 'parent']
+            }
+          },
+          {
+            name: 'create_ui',
+            description: 'Batch-create UI elements (ScreenGui, Frame, TextLabel, TextButton, ImageLabel, etc.) with proper UDim2 positioning and sizing. Handles UDim2 construction directly, avoiding the issues with setting UDim2 via property tools.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                elements: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      className: {
+                        type: 'string',
+                        description: 'UI class name (e.g., "ScreenGui", "Frame", "TextLabel", "TextButton", "ImageLabel", "ScrollingFrame")'
+                      },
+                      name: {
+                        type: 'string',
+                        description: 'Name for the UI element'
+                      },
+                      position: {
+                        type: 'object',
+                        properties: {
+                          xScale: { type: 'number' },
+                          xOffset: { type: 'number' },
+                          yScale: { type: 'number' },
+                          yOffset: { type: 'number' }
+                        },
+                        description: 'Position as UDim2 components'
+                      },
+                      size: {
+                        type: 'object',
+                        properties: {
+                          xScale: { type: 'number' },
+                          xOffset: { type: 'number' },
+                          yScale: { type: 'number' },
+                          yOffset: { type: 'number' }
+                        },
+                        description: 'Size as UDim2 components'
+                      },
+                      properties: {
+                        type: 'object',
+                        description: 'Additional properties to set on the element'
+                      },
+                      parent: {
+                        type: 'string',
+                        description: 'Optional parent path override for this element'
+                      }
+                    },
+                    required: ['className']
+                  },
+                  description: 'Array of UI elements to create'
+                },
+                parent: {
+                  type: 'string',
+                  description: 'Default parent path for all elements (default: "game.StarterGui")',
+                  default: 'game.StarterGui'
+                }
+              },
+              required: ['elements']
+            }
+          },
+          {
+            name: 'fill_terrain',
+            description: 'Fill a rectangular region of terrain with a specific material. Uses Terrain:FillRegion() with a Region3 defined by min and max coordinates.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                material: {
+                  type: 'string',
+                  description: 'Terrain material name (e.g., "Grass", "Sand", "Water", "Rock"). Use get_terrain_materials to see all available materials.'
+                },
+                min: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  minItems: 3,
+                  maxItems: 3,
+                  description: 'Minimum corner [x, y, z] of the region'
+                },
+                max: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  minItems: 3,
+                  maxItems: 3,
+                  description: 'Maximum corner [x, y, z] of the region'
+                }
+              },
+              required: ['material', 'min', 'max']
+            }
+          },
+          {
+            name: 'fill_terrain_sphere',
+            description: 'Fill a spherical area of terrain with a specific material. Uses Terrain:FillBall() with a center point and radius.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                material: {
+                  type: 'string',
+                  description: 'Terrain material name (e.g., "Grass", "Sand", "Water", "Rock"). Use get_terrain_materials to see all available materials.'
+                },
+                center: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  minItems: 3,
+                  maxItems: 3,
+                  description: 'Center point [x, y, z] of the sphere'
+                },
+                radius: {
+                  type: 'number',
+                  description: 'Radius of the sphere in studs'
+                }
+              },
+              required: ['material', 'center', 'radius']
+            }
+          },
+          {
+            name: 'clear_terrain',
+            description: 'Clear terrain. If min/max coordinates are provided, clears only that region by filling it with Air. Otherwise clears all terrain.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                min: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  minItems: 3,
+                  maxItems: 3,
+                  description: 'Optional minimum corner [x, y, z] of the region to clear'
+                },
+                max: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  minItems: 3,
+                  maxItems: 3,
+                  description: 'Optional maximum corner [x, y, z] of the region to clear'
+                }
+              }
+            }
+          },
+          {
+            name: 'get_terrain_materials',
+            description: 'List all available terrain material names that can be used with fill_terrain and fill_terrain_sphere.',
+            inputSchema: {
+              type: 'object',
+              properties: {}
+            }
+          },
+          {
+            name: 'search_replace_scripts',
+            description: 'Search for text across all scripts (Script, LocalScript, ModuleScript) in the game, optionally replacing matches. By default performs a dry run (search only). Set dryRun to false and provide replace string to perform actual replacements.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                search: {
+                  type: 'string',
+                  description: 'The text string to search for (plain text, not pattern)'
+                },
+                replace: {
+                  type: 'string',
+                  description: 'Optional replacement string. If not provided, performs search only.'
+                },
+                root: {
+                  type: 'string',
+                  description: 'Root instance path to search from (default: "game")',
+                  default: 'game'
+                },
+                dryRun: {
+                  type: 'boolean',
+                  description: 'If true (default when no replace given), only reports matches without modifying scripts. Set to false to perform replacements.',
+                  default: true
+                }
+              },
+              required: ['search']
+            }
+          },
+
+          {
             name: 'set_calculated_property',
             description: 'Set properties using mathematical formulas and variables',
             inputSchema: {
@@ -956,6 +1204,30 @@ class RobloxStudioMCPServer {
           case 'mass_duplicate':
             return await this.tools.massDuplicate((args as any)?.duplications);
 
+          case 'reparent_instance':
+            return await this.tools.reparentInstance((args as any)?.instancePath as string, (args as any)?.newParent as string);
+          case 'undo':
+            return await this.tools.undo();
+          case 'redo':
+            return await this.tools.redo();
+          case 'insert_asset':
+            return await this.tools.insertAsset((args as any)?.assetId as number, (args as any)?.parent as string);
+          case 'clone_instance':
+            return await this.tools.cloneInstance((args as any)?.instancePath as string, (args as any)?.parent as string, (args as any)?.name);
+          case 'create_ui':
+            return await this.tools.createUI((args as any)?.elements, (args as any)?.parent);
+
+          case 'fill_terrain':
+            return await this.tools.fillTerrain((args as any)?.material as string, (args as any)?.min, (args as any)?.max);
+          case 'fill_terrain_sphere':
+            return await this.tools.fillTerrainSphere((args as any)?.material as string, (args as any)?.center, (args as any)?.radius as number);
+          case 'clear_terrain':
+            return await this.tools.clearTerrain((args as any)?.min, (args as any)?.max);
+          case 'get_terrain_materials':
+            return await this.tools.getTerrainMaterials();
+          case 'search_replace_scripts':
+            return await this.tools.searchReplaceScripts((args as any)?.search as string, (args as any)?.replace, (args as any)?.root, (args as any)?.dryRun);
+
           case 'set_calculated_property':
             return await this.tools.setCalculatedProperty((args as any)?.paths as string[], (args as any)?.propertyName as string, (args as any)?.formula as string, (args as any)?.variables);
 
@@ -1022,7 +1294,7 @@ class RobloxStudioMCPServer {
 
   async run() {
     const basePort = process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741;
-    const maxPort = basePort + 4;
+    const maxPort = basePort + 49;
     const host = process.env.ROBLOX_STUDIO_HOST || '0.0.0.0';
     const httpServer = createHttpServer(this.tools, this.bridge);
 
@@ -1031,7 +1303,7 @@ class RobloxStudioMCPServer {
       try {
         await new Promise<void>((resolve, reject) => {
           const onError = (err: NodeJS.ErrnoException) => {
-            if (err.code === 'EADDRINUSE') {
+            if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
               httpServer.removeListener('error', onError);
               reject(err);
             } else {
@@ -1048,10 +1320,10 @@ class RobloxStudioMCPServer {
         });
         break;
       } catch (err: any) {
-        if (err.code === 'EADDRINUSE') {
-          console.error(`Port ${port} in use, trying next...`);
+        if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+          console.error(`Port ${port} ${err.code === 'EACCES' ? 'access denied (OS reserved)' : 'in use'}, trying next...`);
           if (port === maxPort) {
-            throw new Error(`All ports ${basePort}-${maxPort} are in use. Stop some MCP server instances and retry.`);
+            throw new Error(`All ports ${basePort}-${maxPort} are unavailable. Set ROBLOX_STUDIO_PORT env var to a different port.`);
           }
           continue;
         }

@@ -1,6 +1,7 @@
 import Utils from "../Utils";
 
 const ChangeHistoryService = game.GetService("ChangeHistoryService");
+const InsertService = game.GetService("InsertService");
 
 const { getInstancePath, getInstanceByPath, convertPropertyValue } = Utils;
 
@@ -310,6 +311,223 @@ function massDuplicate(requestData: Record<string, unknown>) {
 	};
 }
 
+function reparentInstance(requestData: Record<string, unknown>) {
+	const instancePath = requestData.instancePath as string;
+	const newParentPath = requestData.newParent as string;
+
+	if (!instancePath) return { error: "Instance path is required" };
+	if (!newParentPath) return { error: "New parent path is required" };
+
+	const instance = getInstanceByPath(instancePath);
+	if (!instance) return { error: `Instance not found: ${instancePath}` };
+
+	const newParent = getInstanceByPath(newParentPath);
+	if (!newParent) return { error: `New parent not found: ${newParentPath}` };
+
+	const [success, result] = pcall(() => {
+		const oldParentPath = instance.Parent ? getInstancePath(instance.Parent) : "none";
+		instance.Parent = newParent;
+		ChangeHistoryService.SetWaypoint(`Reparent ${instance.Name} to ${newParent.Name}`);
+		return oldParentPath;
+	});
+
+	if (success) {
+		return {
+			success: true,
+			instancePath: getInstancePath(instance),
+			oldParent: result,
+			newParent: newParentPath,
+			message: `Instance reparented successfully`,
+		};
+	} else {
+		return { error: `Failed to reparent instance: ${result}` };
+	}
+}
+
+function undo(_requestData: Record<string, unknown>) {
+	const [success, result] = pcall(() => {
+		ChangeHistoryService.Undo();
+		return true;
+	});
+
+	if (success) {
+		return { success: true, message: "Undo performed successfully" };
+	} else {
+		return { error: `Failed to undo: ${result}` };
+	}
+}
+
+function redo(_requestData: Record<string, unknown>) {
+	const [success, result] = pcall(() => {
+		ChangeHistoryService.Redo();
+		return true;
+	});
+
+	if (success) {
+		return { success: true, message: "Redo performed successfully" };
+	} else {
+		return { error: `Failed to redo: ${result}` };
+	}
+}
+
+function insertAsset(requestData: Record<string, unknown>) {
+	const assetId = requestData.assetId as number;
+	const parentPath = requestData.parent as string;
+
+	if (!assetId) return { error: "Asset ID is required" };
+	if (!parentPath) return { error: "Parent path is required" };
+
+	const parentInstance = getInstanceByPath(parentPath);
+	if (!parentInstance) return { error: `Parent not found: ${parentPath}` };
+
+	const [success, result] = pcall(() => {
+		const model = InsertService.LoadAsset(assetId);
+		const inserted: string[] = [];
+
+		for (const child of model.GetChildren()) {
+			child.Parent = parentInstance;
+			inserted.push(getInstancePath(child));
+		}
+
+		model.Destroy();
+		ChangeHistoryService.SetWaypoint(`Insert asset ${assetId}`);
+		return inserted;
+	});
+
+	if (success) {
+		return {
+			success: true,
+			assetId,
+			parent: parentPath,
+			insertedInstances: result,
+			message: "Asset inserted successfully",
+		};
+	} else {
+		return { error: `Failed to insert asset: ${result}`, assetId, parent: parentPath };
+	}
+}
+
+function cloneInstance(requestData: Record<string, unknown>) {
+	const instancePath = requestData.instancePath as string;
+	const parentPath = requestData.parent as string;
+	const name = requestData.name as string | undefined;
+
+	if (!instancePath) return { error: "Instance path is required" };
+	if (!parentPath) return { error: "Parent path is required" };
+
+	const instance = getInstanceByPath(instancePath);
+	if (!instance) return { error: `Instance not found: ${instancePath}` };
+
+	const parentInstance = getInstanceByPath(parentPath);
+	if (!parentInstance) return { error: `Parent not found: ${parentPath}` };
+
+	const [success, newInstance] = pcall(() => {
+		const clone = instance.Clone();
+		if (name) clone.Name = name;
+		clone.Parent = parentInstance;
+		ChangeHistoryService.SetWaypoint(`Clone ${instance.Name}`);
+		return clone;
+	});
+
+	if (success && newInstance) {
+		return {
+			success: true,
+			sourceInstance: instancePath,
+			newInstancePath: getInstancePath(newInstance as Instance),
+			name: (newInstance as Instance).Name,
+			parent: parentPath,
+			message: "Instance cloned successfully",
+		};
+	} else {
+		return { error: `Failed to clone instance: ${newInstance}`, instancePath, parent: parentPath };
+	}
+}
+
+function createUI(requestData: Record<string, unknown>) {
+	const elements = requestData.elements as Record<string, unknown>[];
+	const defaultParent = (requestData.parent as string) ?? "game.StarterGui";
+
+	if (!elements || !typeIs(elements, "table") || (elements as defined[]).size() === 0) {
+		return { error: "Elements array is required" };
+	}
+
+	const results: Record<string, unknown>[] = [];
+	let successCount = 0;
+	let failureCount = 0;
+
+	for (const elemData of elements) {
+		const className = elemData.className as string;
+		const elemName = elemData.name as string | undefined;
+		const position = elemData.position as Record<string, number> | undefined;
+		const elemSize = elemData.size as Record<string, number> | undefined;
+		const properties = (elemData.properties as Record<string, unknown>) ?? {};
+		const parentPath = (elemData.parent as string) ?? defaultParent;
+
+		if (!className) {
+			failureCount++;
+			results.push({ success: false, error: "className is required" });
+			continue;
+		}
+
+		const parentInstance = getInstanceByPath(parentPath);
+		if (!parentInstance) {
+			failureCount++;
+			results.push({ success: false, className, error: `Parent not found: ${parentPath}` });
+			continue;
+		}
+
+		const [success, newInstance] = pcall(() => {
+			const instance = new Instance(className as keyof CreatableInstances);
+			if (elemName) instance.Name = elemName;
+
+			if (position) {
+				(instance as unknown as { Position: UDim2 }).Position = new UDim2(
+					position.xScale ?? 0, position.xOffset ?? 0,
+					position.yScale ?? 0, position.yOffset ?? 0,
+				);
+			}
+
+			if (elemSize) {
+				(instance as unknown as { Size: UDim2 }).Size = new UDim2(
+					elemSize.xScale ?? 0, elemSize.xOffset ?? 0,
+					elemSize.yScale ?? 0, elemSize.yOffset ?? 0,
+				);
+			}
+
+			for (const [propName, propValue] of pairs(properties)) {
+				pcall(() => {
+					const converted = convertPropertyValue(instance, propName as string, propValue);
+					if (converted !== undefined) {
+						(instance as unknown as { [key: string]: unknown })[propName as string] = converted;
+					}
+				});
+			}
+
+			instance.Parent = parentInstance;
+			return instance;
+		});
+
+		if (success && newInstance) {
+			successCount++;
+			results.push({
+				success: true,
+				className,
+				instancePath: getInstancePath(newInstance as Instance),
+				name: (newInstance as Instance).Name,
+			});
+		} else {
+			failureCount++;
+			results.push({ success: false, className, error: tostring(newInstance) });
+		}
+	}
+
+	if (successCount > 0) ChangeHistoryService.SetWaypoint("Create UI elements");
+	return {
+		results,
+		summary: { total: (elements as defined[]).size(), succeeded: successCount, failed: failureCount },
+	};
+}
+
 export = {
 	createObject,
 	deleteObject,
@@ -317,4 +535,10 @@ export = {
 	massCreateObjectsWithProperties,
 	smartDuplicate,
 	massDuplicate,
+	reparentInstance,
+	undo,
+	redo,
+	insertAsset,
+	cloneInstance,
+	createUI,
 };

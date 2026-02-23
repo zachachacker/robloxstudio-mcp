@@ -318,10 +318,112 @@ function deleteScriptLines(requestData: Record<string, unknown>) {
 	return { error: `Failed to delete script lines: ${result}` };
 }
 
+function searchReplaceScripts(requestData: Record<string, unknown>) {
+	const searchStr = requestData.search as string;
+	const replaceStr = requestData.replace as string | undefined;
+	const rootPath = (requestData.root as string) ?? "game";
+	const dryRun = (requestData.dryRun as boolean) ?? (replaceStr === undefined);
+
+	if (!searchStr) return { error: "Search string is required" };
+
+	const root = getInstanceByPath(rootPath);
+	if (!root) return { error: `Root instance not found: ${rootPath}` };
+
+	const results: Record<string, unknown>[] = [];
+	let totalMatches = 0;
+	let totalFilesMatched = 0;
+	let totalFilesModified = 0;
+
+	const [success, err] = pcall(() => {
+		const descendants = root.GetDescendants();
+		for (const child of descendants) {
+			if (!child.IsA("LuaSourceContainer")) continue;
+
+			const [readOk, source] = pcall(() => readScriptSource(child as LuaSourceContainer));
+			if (!readOk || !source) continue;
+
+			// Count matches using string.find with plain=true
+			let matchCount = 0;
+			let searchStart = 1;
+			while (true) {
+				const [foundPos] = string.find(source, searchStr, searchStart, true);
+				if (foundPos === undefined) break;
+				matchCount++;
+				searchStart = foundPos + 1;
+			}
+
+			if (matchCount === 0) continue;
+
+			totalMatches += matchCount;
+			totalFilesMatched++;
+
+			const scriptPath = getInstancePath(child);
+
+			if (!dryRun && replaceStr !== undefined) {
+				// Escape Lua pattern special characters in search string for gsub
+				const escaped = searchStr.gsub("([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1")[0];
+				const newSource = source.gsub(escaped, replaceStr)[0];
+
+				const [writeOk, writeErr] = pcall(() => {
+					ScriptEditorService.UpdateSourceAsync(child as LuaSourceContainer, () => newSource);
+				});
+
+				if (writeOk) {
+					totalFilesModified++;
+					results.push({
+						scriptPath,
+						scriptName: child.Name,
+						matches: matchCount,
+						modified: true,
+					});
+				} else {
+					results.push({
+						scriptPath,
+						scriptName: child.Name,
+						matches: matchCount,
+						modified: false,
+						error: tostring(writeErr),
+					});
+				}
+			} else {
+				results.push({
+					scriptPath,
+					scriptName: child.Name,
+					matches: matchCount,
+					modified: false,
+				});
+			}
+		}
+
+		if (totalFilesModified > 0) {
+			ChangeHistoryService.SetWaypoint(`Search/replace in scripts`);
+		}
+	});
+
+	if (!success) {
+		return { error: `Failed to search/replace: ${err}` };
+	}
+
+	return {
+		success: true,
+		search: searchStr,
+		replace: dryRun ? undefined : replaceStr,
+		dryRun,
+		root: rootPath,
+		results,
+		summary: {
+			totalMatches,
+			totalFilesMatched,
+			totalFilesModified,
+		},
+	};
+}
+
 export = {
 	getScriptSource,
 	setScriptSource,
 	editScriptLines,
 	insertScriptLines,
 	deleteScriptLines,
+	searchReplaceScripts,
 };

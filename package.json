@@ -33,15 +33,15 @@
     "model-context-protocol",
     "game-development"
   ],
-  "author": "",
+  "author": "drgost1",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/boshyxd/robloxstudio-mcp.git"
+    "url": "https://github.com/drgost1/robloxstudio-mcp.git"
   },
-  "homepage": "https://github.com/boshyxd/robloxstudio-mcp#readme",
+  "homepage": "https://github.com/drgost1/robloxstudio-mcp#readme",
   "bugs": {
-    "url": "https://github.com/boshyxd/robloxstudio-mcp/issues"
+    "url": "https://github.com/drgost1/robloxstudio-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",

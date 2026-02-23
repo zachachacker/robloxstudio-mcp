@@ -8,6 +8,7 @@ import InstanceHandlers from "./handlers/InstanceHandlers";
 import ScriptHandlers from "./handlers/ScriptHandlers";
 import MetadataHandlers from "./handlers/MetadataHandlers";
 import TestHandlers from "./handlers/TestHandlers";
+import TerrainHandlers from "./handlers/TerrainHandlers";
 import { Connection, RequestPayload, PollResponse } from "../types";
 
 type Handler = (data: Record<string, unknown>) => unknown;
@@ -37,12 +38,24 @@ const routeMap: Record<string, Handler> = {
 	"/api/delete-object": InstanceHandlers.deleteObject,
 	"/api/smart-duplicate": InstanceHandlers.smartDuplicate,
 	"/api/mass-duplicate": InstanceHandlers.massDuplicate,
+	"/api/reparent-instance": InstanceHandlers.reparentInstance,
+	"/api/undo": InstanceHandlers.undo,
+	"/api/redo": InstanceHandlers.redo,
+	"/api/insert-asset": InstanceHandlers.insertAsset,
+	"/api/clone-instance": InstanceHandlers.cloneInstance,
+	"/api/create-ui": InstanceHandlers.createUI,
 
 	"/api/get-script-source": ScriptHandlers.getScriptSource,
 	"/api/set-script-source": ScriptHandlers.setScriptSource,
 	"/api/edit-script-lines": ScriptHandlers.editScriptLines,
 	"/api/insert-script-lines": ScriptHandlers.insertScriptLines,
 	"/api/delete-script-lines": ScriptHandlers.deleteScriptLines,
+	"/api/search-replace-scripts": ScriptHandlers.searchReplaceScripts,
+
+	"/api/fill-terrain": TerrainHandlers.fillTerrain,
+	"/api/fill-terrain-sphere": TerrainHandlers.fillTerrainSphere,
+	"/api/clear-terrain": TerrainHandlers.clearTerrain,
+	"/api/get-terrain-materials": TerrainHandlers.getTerrainMaterials,
 
 	"/api/get-attribute": MetadataHandlers.getAttribute,
 	"/api/set-attribute": MetadataHandlers.setAttribute,
@@ -241,7 +254,7 @@ function pollForRequests(connIndex: number) {
 }
 
 function discoverPort(): number | undefined {
-	for (let offset = 0; offset < 5; offset++) {
+	for (let offset = 0; offset < 50; offset++) {
 		const port = State.BASE_PORT + offset;
 		const [success, result] = pcall(() => {
 			return HttpService.RequestAsync({
@@ -365,7 +378,7 @@ function checkForUpdates() {
 				const latestVersion = data.version;
 				if (Utils.compareVersions(State.CURRENT_VERSION, latestVersion) < 0) {
 					const ui = UI.getElements();
-					ui.updateBannerText.Text = `v${latestVersion} available - github.com/boshyxd/robloxstudio-mcp`;
+					ui.updateBannerText.Text = `v${latestVersion} available - github.com/drgost1/robloxstudio-mcp`;
 					ui.updateBanner.Visible = true;
 					ui.contentFrame.Position = new UDim2(0, 8, 0, 92);
 					ui.contentFrame.Size = new UDim2(1, -16, 1, -100);
