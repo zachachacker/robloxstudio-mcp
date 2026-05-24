@@ -1295,7 +1295,7 @@ class RobloxStudioMCPServer {
   async run() {
     const basePort = process.env.ROBLOX_STUDIO_PORT ? parseInt(process.env.ROBLOX_STUDIO_PORT) : 58741;
     const maxPort = basePort + 49;
-    const host = process.env.ROBLOX_STUDIO_HOST || '0.0.0.0';
+    const host = process.env.ROBLOX_STUDIO_HOST || '127.0.0.1';
     const httpServer = createHttpServer(this.tools, this.bridge);
 
     let boundPort = 0;
