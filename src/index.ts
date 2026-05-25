@@ -1145,6 +1145,29 @@ class RobloxStudioMCPServer {
               type: 'object',
               properties: {}
             }
+          },
+          {
+            name: 'search_creator_store',
+            description: 'Search the Roblox Creator Store / Catalog for assets matching a keyword. Returns a list of { id, name, creator, type }. Use insert_asset(id) to drop a chosen result into the workspace.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: 'Keyword (e.g. "laptop", "sword")' },
+                category: { type: 'number', description: 'Roblox catalog category code. Default 13 (Models). Other examples: 11 Accessories, 12 Bundles.' },
+                limit: { type: 'number', description: 'Max results, 1-30. Default 12.' }
+              },
+              required: ['query']
+            }
+          },
+          {
+            name: 'screenshot_studio',
+            description: 'Capture a PNG of the whole Roblox Studio window (includes Explorer, Properties, viewport, Output). Returned as image content the agent can reason about. macOS only.',
+            inputSchema: { type: 'object', properties: {} }
+          },
+          {
+            name: 'screenshot_viewport',
+            description: 'Capture an approximate 3D-viewport-only PNG of the Roblox Studio window (heuristic crop — strips Explorer/Properties/Toolbars/Output). For seeing what the scene currently looks like. macOS only.',
+            inputSchema: { type: 'object', properties: {} }
           }
         ]
       };
@@ -1155,6 +1178,13 @@ class RobloxStudioMCPServer {
 
       try {
         switch (name) {
+
+          case 'search_creator_store':
+            return await this.tools.searchCreatorStore((args as any)?.query as string, (args as any)?.category, (args as any)?.limit);
+          case 'screenshot_studio':
+            return await this.tools.screenshotStudio();
+          case 'screenshot_viewport':
+            return await this.tools.screenshotViewport();
 
           case 'get_file_tree':
             return await this.tools.getFileTree((args as any)?.path || '');

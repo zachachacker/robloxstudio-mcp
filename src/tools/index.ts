@@ -1,11 +1,180 @@
+import { exec as execCb } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { StudioHttpClient } from './studio-client.js';
 import { BridgeService } from '../bridge-service.js';
+
+const exec = promisify(execCb);
 
 export class RobloxStudioTools {
   private client: StudioHttpClient;
 
   constructor(bridge: BridgeService) {
     this.client = new StudioHttpClient(bridge);
+  }
+
+  // ============================================================
+  // v2 additions — direct (no Studio bridge needed)
+  // ============================================================
+
+  /**
+   * Search the Roblox Creator Store / Catalog for assets matching a keyword.
+   * Returns id + name + creator so the agent can call insert_asset(id) next.
+   * Public Roblox catalog API, no auth required.
+   *
+   * Category codes (Roblox catalog v1):
+   *   13 = Models, 11 = Accessories, 3 = Gear/Audio, 12 = Bundles, 1 = Featured
+   *   "default" → 13 (Models) since that's the most common Studio search target.
+   */
+  async searchCreatorStore(query: string, category: number = 13, limit: number = 12) {
+    const safeQuery = encodeURIComponent(query);
+    const url = `https://catalog.roblox.com/v1/search/items?Category=${category}&Keyword=${safeQuery}&Limit=${Math.min(Math.max(limit, 1), 30)}`;
+    let payload: { data?: Array<{ id: number; itemType?: string; name?: string; creatorName?: string; creatorType?: string }> } = {};
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'Baseplate/1.0 (mcp asset search)' } });
+      if (!res.ok) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Creator Store search failed: HTTP ${res.status} ${res.statusText}. URL: ${url}`,
+            },
+          ],
+        };
+      }
+      payload = (await res.json()) as typeof payload;
+    } catch (err) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Creator Store search threw: ${err instanceof Error ? err.message : String(err)}. URL: ${url}`,
+          },
+        ],
+      };
+    }
+
+    const hits = (payload.data ?? []).map((d) => ({
+      id: d.id,
+      name: d.name ?? '(unnamed)',
+      creator: d.creatorName ?? '(unknown)',
+      type: d.itemType ?? 'Asset',
+    }));
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text:
+            hits.length === 0
+              ? `No results for "${query}" (category ${category}). Try a different keyword or category code.`
+              : JSON.stringify({ query, category, count: hits.length, hits }, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Capture the whole Roblox Studio app window via macOS `screencapture`.
+   * Returns the PNG as base64 MCP image content so the agent can reason about it.
+   * macOS-only; on other platforms returns a clear error.
+   */
+  async screenshotStudio() {
+    return this.captureStudioWindow({ viewportOnly: false });
+  }
+
+  /**
+   * Capture an approximate viewport-only region of the Studio window
+   * (rough heuristic crop — strips left ~17% Explorer, right ~17% Properties,
+   * top ~10% toolbars, bottom ~18% Output). Studio layouts vary; the agent
+   * should ask for screenshotStudio() if it needs the full chrome.
+   */
+  async screenshotViewport() {
+    return this.captureStudioWindow({ viewportOnly: true });
+  }
+
+  private async captureStudioWindow(opts: { viewportOnly: boolean }) {
+    if (process.platform !== 'darwin') {
+      return {
+        content: [{ type: 'text' as const, text: 'screenshot tools are macOS-only. Detected platform: ' + process.platform }],
+      };
+    }
+
+    let dir: string | null = null;
+    try {
+      dir = await mkdtemp(join(tmpdir(), 'baseplate-shot-'));
+      const fullPath = join(dir, 'full.png');
+
+      // Find the Studio window's CGWindowID via AppleScript, then capture it.
+      // Roblox Studio's process name is "RobloxStudio" on macOS.
+      const findWindowScript = `
+        tell application "System Events"
+          set procExists to exists (process "RobloxStudio")
+          if not procExists then return "NOT_RUNNING"
+          tell process "RobloxStudio"
+            if (count windows) is 0 then return "NO_WINDOW"
+            set w to window 1
+            set p to position of w
+            set s to size of w
+            return (item 1 of p as string) & "," & (item 2 of p as string) & "," & (item 1 of s as string) & "," & (item 2 of s as string)
+          end tell
+        end tell
+      `.trim();
+
+      const { stdout } = await exec(`osascript -e ${JSON.stringify(findWindowScript)}`, { timeout: 5000 }).catch((e) => ({ stdout: `ERR:${e instanceof Error ? e.message : String(e)}` }));
+      const trimmed = stdout.trim();
+
+      if (trimmed === 'NOT_RUNNING' || trimmed.startsWith('ERR:')) {
+        return { content: [{ type: 'text' as const, text: 'Roblox Studio is not running. Open it and retry.' }] };
+      }
+      if (trimmed === 'NO_WINDOW') {
+        return { content: [{ type: 'text' as const, text: 'Roblox Studio is running but has no open window.' }] };
+      }
+      const parts = trimmed.split(',').map((s) => Number(s.trim()));
+      if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+        return { content: [{ type: 'text' as const, text: `Couldn't parse Studio window geometry: ${trimmed}` }] };
+      }
+      let [x, y, w, h] = parts as [number, number, number, number];
+
+      if (opts.viewportOnly) {
+        // Heuristic crop. Strip approximate UI chrome.
+        const leftStrip = Math.round(w * 0.17);
+        const rightStrip = Math.round(w * 0.17);
+        const topStrip = Math.round(h * 0.10);
+        const bottomStrip = Math.round(h * 0.18);
+        x += leftStrip;
+        y += topStrip;
+        w = Math.max(50, w - leftStrip - rightStrip);
+        h = Math.max(50, h - topStrip - bottomStrip);
+      }
+
+      // screencapture -R<x,y,w,h> region.png
+      const region = `${x},${y},${w},${h}`;
+      const { stderr } = await exec(`screencapture -x -R ${region} ${JSON.stringify(fullPath)}`, { timeout: 5000 }).catch((e) => ({ stderr: e instanceof Error ? e.message : String(e) }));
+      if (stderr && stderr.trim()) {
+        return { content: [{ type: 'text' as const, text: `screencapture stderr: ${stderr}` }] };
+      }
+
+      const bytes = await readFile(fullPath);
+      return {
+        content: [
+          {
+            type: 'image' as const,
+            data: bytes.toString('base64'),
+            mimeType: 'image/png',
+          },
+        ],
+      };
+    } catch (err) {
+      return {
+        content: [{ type: 'text' as const, text: `screenshot failed: ${err instanceof Error ? err.message : String(err)}` }],
+      };
+    } finally {
+      if (dir) {
+        try { await rm(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
+    }
   }
 
 
